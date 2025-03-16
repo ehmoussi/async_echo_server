@@ -36,7 +36,9 @@ def main() -> None:
             while is_connected:
                 client_data = input()
                 try:
-                    ssl_client_sock.sendall(client_data.encode(errors="replace"))
+                    ssl_client_sock.sendall(
+                        client_data.encode(errors="replace") + b"\n\n"
+                    )
                 except Exception as e:
                     print(f"Unexpectedly failed to send to the server {e}")
                 server_data: bytes | None = None
