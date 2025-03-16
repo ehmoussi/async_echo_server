@@ -1,3 +1,4 @@
+import io
 import socket
 import logging
 import atexit
@@ -86,8 +87,16 @@ def main() -> None:
                             logger.info(
                                 "Received from %s: %s", addr_info, data.decode()
                             )
-                            client_sock.sendall(data)
-                            logger.info("Send to %s: %s", addr_info, data.decode())
+                            try:
+                                client_sock.sendall(data)
+                            except Exception as e:
+                                logger.info(
+                                    "Failed to send response to the client %s",
+                                    addr_info,
+                                )
+                                logger.exception(e)
+                            else:
+                                logger.info("Send to %s: %s", addr_info, data.decode())
 
 
 if __name__ == "__main__":
