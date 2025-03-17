@@ -1,7 +1,14 @@
 [project]
 name = "async-echo-server"
 version = "0.1.0"
-description = "Add your description here"
+description = "Asynchronous echo server written in pure Python using only generators."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = []
+license = "MIT"
+
+[dependency-groups]
+dev = [
+    "mypy>=1.15.0",
+    "ruff>=0.11.0",
+]

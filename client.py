@@ -1,73 +1,40 @@
-import socket
 import ssl
+from typing import Any, Generator
+
+import aio
+from aio import Future
 
 HOSTNAME = "0.0.0.0"
 PORT = 3000
 
 
-def main() -> None:
-    context = ssl.create_default_context()
-    context.load_verify_locations(cafile="cert.pem")
-    context.check_hostname = False
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as client_sock:
-        client_sock.setblocking(False)
+def echo_server(
+    sock: ssl.SSLSocket, input_data: str, end_of_stream: bytes = b"\n\n"
+) -> Generator[Future[bytes], bytes | None, bytes | None]:
+    loop = aio.get_event_loop()
+    try:
+        sock.sendall(input_data.encode(errors="replace") + end_of_stream)
+    except Exception as e:
+        print(f"Unexpectedly failed to send to the server {e}")
+    data = yield from loop.read_all(sock)
+    if data is not None:
+        print(f"Received from the server: {data.decode(errors="replace")}")
+    return data
+
+
+def main() -> Generator[aio.Future[Any], ssl.SSLSocket, None]:
+    loop = aio.get_event_loop()
+    ssl_client_sock: ssl.SSLSocket | None = None
+    try:
+        ssl_client_sock = yield from loop.connect_client(HOSTNAME, PORT, "cert.pem")
+        print("Echo server")
         while True:
-            try:
-                client_sock.connect((HOSTNAME, PORT))
-            except BlockingIOError:
-                pass
-            except Exception:
-                print(f"Failed to connect to {(HOSTNAME, PORT)}")
-            else:
-                is_connected = True
-                break
-        with context.wrap_socket(
-            client_sock, do_handshake_on_connect=False, server_hostname=HOSTNAME
-        ) as ssl_client_sock:
-            ssl_client_sock.do_handshake(block=True)
-            while True:
-                try:
-                    ssl_client_sock.do_handshake(block=False)
-                except ssl.SSLWantReadError:
-                    pass
-                else:
-                    break
-            print("Echo server")
-            while is_connected:
-                client_data = input()
-                try:
-                    ssl_client_sock.sendall(
-                        client_data.encode(errors="replace") + b"\n\n"
-                    )
-                except Exception as e:
-                    print(f"Unexpectedly failed to send to the server {e}")
-                server_data: bytes | None = None
-                while True:
-                    try:
-                        recv_data = ssl_client_sock.recv(1024)
-                    except ssl.SSLWantReadError:
-                        if server_data is None:
-                            continue
-                        else:
-                            break
-                    except Exception:
-                        server_data = None
-                        is_connected = False
-                        break
-                    else:
-                        if recv_data == b"":
-                            server_data = None
-                            is_connected = False
-                            break
-                        else:
-                            if server_data is None:
-                                server_data = b""
-                            server_data += recv_data
-                if server_data is not None:
-                    print(
-                        f"Received from the server: {server_data.decode(errors="replace")}"
-                    )
+            client_data = input()
+            yield from echo_server(ssl_client_sock, client_data)
+    finally:
+        if ssl_client_sock is not None:
+            ssl_client_sock.close()
 
 
 if __name__ == "__main__":
-    main()
+    aio.EventLoop().run(main())
